@@ -3,13 +3,28 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, randomUUID } from 'node:crypto';
 import type { ChatGptMcpConfig } from './config.js';
 
-const context = new AsyncLocalStorage<{ requestId: string; transportSignal?: AbortSignal; signals: WeakMap<AbortSignal, AbortSignal> }>();
+const context = new AsyncLocalStorage<{ requestId: string; transportSignal?: AbortSignal; originSpace?: string; originAccount?: string; signals: WeakMap<AbortSignal, AbortSignal> }>();
 const startedAt = new Date().toISOString();
 const fingerprints = new WeakMap<object, string>();
-export function diagnosticId(): string { return context.getStore()?.requestId ?? randomUUID(); }
-export function withDiagnosticRequest<T>(fn: () => T, transportSignal?: AbortSignal): T {
-  return context.run({ requestId: randomUUID(), signals: new WeakMap(), ...(transportSignal ? { transportSignal } : {}) }, fn);
+type OriginToolResult = { operation: string; status: 'RETURNED' | 'ERROR'; observedAt: string };
+const originToolResults = new Map<string, OriginToolResult>();
+export function recordOriginToolResult(operation: string, status: OriginToolResult['status']): void {
+  const account = requestOriginAccount();
+  if (!account) return;
+  originToolResults.delete(account);
+  originToolResults.set(account, { operation, status, observedAt: new Date().toISOString() });
+  // ponytail: retain the latest result for at most 64 source IDs; use durable receipts if history is needed.
+  if (originToolResults.size > 64) originToolResults.delete(originToolResults.keys().next().value!);
 }
+export function recentOriginToolResults(): Record<string, OriginToolResult> {
+  return Object.fromEntries(originToolResults);
+}
+export function diagnosticId(): string { return context.getStore()?.requestId ?? randomUUID(); }
+export function withDiagnosticRequest<T>(fn: () => T, transportSignal?: AbortSignal, originSpace?: string, originAccount?: string): T {
+  return context.run({ requestId: randomUUID(), signals: new WeakMap(), ...(transportSignal ? { transportSignal } : {}), ...(originSpace ? { originSpace } : {}), ...(originAccount ? { originAccount } : {}) }, fn);
+}
+export function requestOriginSpace(): string | undefined { return context.getStore()?.originSpace; }
+export function requestOriginAccount(): string | undefined { return context.getStore()?.originAccount; }
 
 /** Keep cancellation attached to the native HTTP exchange, even when SDK
  * transports release intermediate Request/AbortSignal objects while streaming.

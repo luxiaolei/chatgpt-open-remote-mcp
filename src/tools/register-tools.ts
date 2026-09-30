@@ -1,5 +1,5 @@
 import { requestSignal } from '../diagnostics.js';
-import { diagnosticId, errorCategory, runtimeIdentity, trace } from '../diagnostics.js';
+import { diagnosticId, errorCategory, recordOriginToolResult, runtimeIdentity, trace } from '../diagnostics.js';
 import { registerJobTools } from './register-job-tools.js';
 import { McpServer, type CallToolResult } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
@@ -97,9 +97,12 @@ async function run(
       return fn();
     }, signal, admission);
     trace('tool_completed', { requestId: id, operation, elapsedMs: Math.round(performance.now() - started) });
-    return enforceTransportBudget(success(result, message?.(result)), operation);
+    const response = enforceTransportBudget(success(result, message?.(result)), operation);
+    recordOriginToolResult(operation, response.isError ? 'ERROR' : 'RETURNED');
+    return response;
   } catch (error) {
     trace('tool_failed', { requestId: id, operation, code: isComputerAdapterError(error) ? error.code : 'OS_ERROR', elapsedMs: Math.round(performance.now() - started) });
+    recordOriginToolResult(operation, 'ERROR');
     return failure(error, operation);
   }
 }
@@ -476,7 +479,7 @@ export function registerTools(
       'screen.capture',
       {
         title: 'Capture Screen',
-        description: 'Use this to capture the caller-selected X11 DISPLAY as a PNG image.',
+        description: 'Capture a PNG of the selected display. Use display "main" on macOS; use an X11 DISPLAY on Linux.',
         inputSchema: z.object({ display: displaySchema }),
         outputSchema: z.object({ mimeType: z.literal('image/png'), bytes: z.number().int().nonnegative(), display: z.string() }),
         annotations: { readOnlyHint: true, idempotentHint: false, openWorldHint: false },
@@ -542,7 +545,7 @@ export function registerTools(
       'input.move',
       {
         title: 'Move Pointer',
-        description: 'Use this to move the pointer on the caller-selected X11 DISPLAY to absolute screen coordinates.',
+        description: 'Move the pointer using screenshot coordinates. Use display "main" on macOS; use an X11 DISPLAY on Linux.',
         inputSchema: z.object({ x: z.number().int().nonnegative(), y: z.number().int().nonnegative(), display: displaySchema }),
         outputSchema: z.object({ x: z.number().int().nonnegative(), y: z.number().int().nonnegative(), display: z.string() }),
         annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
@@ -557,7 +560,7 @@ export function registerTools(
       'input.click',
       {
         title: 'Click Pointer',
-        description: 'Use this to click the pointer on the caller-selected X11 DISPLAY, optionally moving to absolute coordinates first.',
+        description: 'Click the pointer, optionally at screenshot coordinates. Use display "main" on macOS; use an X11 DISPLAY on Linux.',
         inputSchema: z.object({
           button: pointerButtonSchema.default('left'),
           display: displaySchema,
@@ -577,7 +580,7 @@ export function registerTools(
       'input.type',
       {
         title: 'Type Text',
-        description: 'Use this to type literal text into the focused application on the caller-selected X11 DISPLAY.',
+        description: 'Type literal text into the focused application. Use display "main" on macOS; use an X11 DISPLAY on Linux.',
         inputSchema: z.object({ text: z.string(), display: displaySchema, delayMs: z.number().int().min(0).max(10_000).default(0) }),
         outputSchema: z.object({ bytes: z.number().int().nonnegative(), delayMs: z.number().int().nonnegative(), display: z.string() }),
         annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
@@ -592,7 +595,7 @@ export function registerTools(
       'input.key',
       {
         title: 'Press Key',
-        description: 'Use this to send one xdotool-compatible key sequence to the focused application on the caller-selected X11 DISPLAY.',
+        description: 'Send one key or shortcut to the focused application. Use display "main" on macOS; use an X11 DISPLAY on Linux.',
         inputSchema: z.object({ key: z.string().min(1).max(256), display: displaySchema }),
         outputSchema: z.object({ key: z.string(), display: z.string() }),
         annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },

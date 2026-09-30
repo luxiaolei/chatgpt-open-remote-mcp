@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { instanceId, equalSecret, routingAbi, jobsAbi, policyFingerprint } from './hotswap/identity.js';
 import { runtimeIdentity } from './diagnostics.js';
-import { diagnosticId, trace, withDiagnosticRequest } from './diagnostics.js';
+import { diagnosticId, recentOriginToolResults, trace, withDiagnosticRequest } from './diagnostics.js';
 import { timingSafeEqual } from 'node:crypto';
 import { once } from 'node:events';
 import { createServer, type IncomingMessage, type Server as NodeHttpServer, type ServerResponse } from 'node:http';
@@ -146,7 +146,9 @@ export function createComputerHttpServer(
         const ready = snapshot.status !== 'overloaded';
         writeJson(res, ready ? 200 : 503, { ok: ready, service: '@platform-modules/chatgpt-mcp', concurrency: snapshot });
       } else {
-        writeJson(res, 200, { service: '@platform-modules/chatgpt-mcp', concurrency: snapshot, ...(adapter.executionMetrics === undefined ? {} : { execution: adapter.executionMetrics() }) });
+        const toolResults = !config.http.token || equalSecret(req.headers.authorization, `Bearer ${config.http.token}`)
+          ? { originToolResults: recentOriginToolResults() } : {};
+        writeJson(res, 200, { service: '@platform-modules/chatgpt-mcp', concurrency: snapshot, ...toolResults, ...(adapter.executionMetrics === undefined ? {} : { execution: adapter.executionMetrics() }) });
       }
       return;
     }
@@ -165,6 +167,20 @@ export function createComputerHttpServer(
     if (req.method === undefined) {
       writeJson(res, 400, { error: 'missing_method' });
       return;
+    }
+    const rawOriginSpace = req.headers['x-chat-bridge-origin-space'];
+    const rawOriginAccount = req.headers['x-chat-bridge-origin-account'];
+    const originAccount = typeof rawOriginAccount === 'string' && /^[0-9a-f]{64}$/.test(rawOriginAccount) ? rawOriginAccount : undefined;
+    if (rawOriginAccount !== undefined && !originAccount) { writeJson(res, 400, { error: 'invalid_origin_account' }); return; }
+    let originSpace: string | undefined;
+    if (rawOriginSpace !== undefined) {
+      try {
+        if (typeof rawOriginSpace !== 'string' || rawOriginSpace.length > 384) throw new Error('invalid');
+        originSpace = decodeURIComponent(rawOriginSpace);
+        if (!originSpace || originSpace.length > 128 || /[\x00-\x1f\x7f]/.test(originSpace)) throw new Error('invalid');
+      } catch {
+        writeJson(res, 400, { error: 'invalid_origin_space' }); return;
+      }
     }
 
     // Node's IncomingMessage types model `method` as optional, while the MCP
@@ -198,7 +214,7 @@ export function createComputerHttpServer(
         req.socket.off('close', disconnect);
         exchanges -= 1;
       });
-    }, transportAbort.signal);
+    }, transportAbort.signal, originSpace, originAccount);
   });
 
   return { server, closeHandler: handler.close };

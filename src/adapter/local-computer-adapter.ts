@@ -5,6 +5,7 @@ import { lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, rmdir, stat, writ
 import { arch, hostname, platform, release, tmpdir, uptime } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { ChatGptMcpConfig } from '../config.js';
+import { requestOriginAccount, requestOriginSpace } from '../diagnostics.js';
 import { adapterError, isComputerAdapterError } from '../errors.js';
 import { authorizePath, authorizePathRead, authorizePathEntryCreation, authorizePathEntryMutation, authorizeShellFilesystemMutation, authorizeShellFilesystemRead } from '../policy/filesystem.js';
 import { spawnBounded } from '../execution/bounded-process.js';
@@ -27,6 +28,7 @@ import type {
   ShellExecutionClass,
   SystemInfo,
 } from './computer-adapter.js';
+import { captureMacScreen, macInput, parseMacKey, requireMacDisplay } from './mac-desktop.js';
 
 const SERVICE_NAME = /^[A-Za-z0-9_.@:-]+$/;
 const MAX_APPLICATION_ARGS = 256;
@@ -284,10 +286,13 @@ export class LocalComputerAdapter implements ComputerAdapter {
     const env = nonInteractiveShellEnvironment(
       validateShellEnvironment(request.env, this.config.shell.allowEnvironment, this.config.desktop.hostDisplayAccess),
     );
+    const originSpace = requestOriginSpace();
+    const originAccount = requestOriginAccount();
+    const commandEnv = originAccount ? { ...env, CHAT_BRIDGE_FROM_ACCOUNT_ID: originAccount } : originSpace ? { ...env, CHAT_BRIDGE_FROM_SPACE: originSpace } : env;
     const args = nonInteractiveShellArgs(request.command, request.args);
     const options = {
       ...(cwd === undefined ? {} : { cwd }),
-      ...(env === undefined ? {} : { env }),
+      ...(commandEnv === undefined ? {} : { env: commandEnv }),
       timeoutMs: effectiveShellRuntime(
         request.timeoutMs,
         this.config.shell.defaultRuntimeMs ?? Math.min(30_000, this.config.shell.maxRuntimeMs),
@@ -516,6 +521,27 @@ export class LocalComputerAdapter implements ComputerAdapter {
     const operation = 'screen.capture';
     requireCapability(this.config.desktop.hostDisplayAccess, operation, 'Host display access is disabled.');
     requireCapability(this.config.desktop.screenCapture, operation, 'Screen capture is disabled.');
+    if (platform() === 'darwin') {
+      try {
+        requireMacDisplay(display);
+        const dir = await mkdtemp(join(tmpdir(), 'chatgpt-mcp-screen-'));
+        try {
+          const file = join(dir, 'screen.png');
+          await captureMacScreen(file);
+          const image = await readFile(file);
+          if (image.byteLength > this.config.desktop.maxImageBytes) {
+            throw adapterError('OUTPUT_LIMIT', operation, 'Screenshot exceeds the configured image byte limit.', {
+              size: image.byteLength, maximum: this.config.desktop.maxImageBytes,
+            });
+          }
+          return { mimeType: 'image/png', data: image.toString('base64'), bytes: image.byteLength };
+        } finally {
+          await rm(dir, { recursive: true, force: true });
+        }
+      } catch (error) {
+        mapOsError(error, operation);
+      }
+    }
     const desktopEnv = this.desktopEnvironment(display, operation);
     const dir = await mkdtemp(join(tmpdir(), 'chatgpt-mcp-screen-'));
     const file = join(dir, 'screen.png');
@@ -748,6 +774,12 @@ export class LocalComputerAdapter implements ComputerAdapter {
   async movePointer(x: number, y: number, display: string): Promise<void> {
     const operation = 'input.move';
     validateCoordinates(x, y, operation);
+    if (platform() === 'darwin') {
+      requireCapability(this.config.desktop.hostDisplayAccess && this.config.desktop.input, operation, 'Desktop input is disabled.');
+      try { requireMacDisplay(display); await macInput('move', [String(x), String(y)]); }
+      catch (error) { mapOsError(error, operation); }
+      return;
+    }
     await this.xdotool(['mousemove', '--sync', String(x), String(y)], operation, display);
   }
 
@@ -758,8 +790,14 @@ export class LocalComputerAdapter implements ComputerAdapter {
     }
     if (x !== undefined && y !== undefined) {
       validateCoordinates(x, y, operation);
-      await this.xdotool(['mousemove', '--sync', String(x), String(y)], operation, display);
     }
+    if (platform() === 'darwin') {
+      requireCapability(this.config.desktop.hostDisplayAccess && this.config.desktop.input, operation, 'Desktop input is disabled.');
+      try { requireMacDisplay(display); await macInput('click', [button, ...(x === undefined ? [] : [String(x), String(y)])]); }
+      catch (error) { mapOsError(error, operation); }
+      return;
+    }
+    if (x !== undefined && y !== undefined) await this.xdotool(['mousemove', '--sync', String(x), String(y)], operation, display);
     const buttonNumber = button === 'left' ? '1' : button === 'middle' ? '2' : '3';
     await this.xdotool(['click', buttonNumber], operation, display);
   }
@@ -776,6 +814,12 @@ export class LocalComputerAdapter implements ComputerAdapter {
         maximum: this.config.desktop.maxTextBytes,
       });
     }
+    if (platform() === 'darwin') {
+      requireCapability(this.config.desktop.hostDisplayAccess && this.config.desktop.input, operation, 'Desktop input is disabled.');
+      try { requireMacDisplay(display); await macInput('type', [text, String(delayMs)]); }
+      catch (error) { mapOsError(error, operation); }
+      return;
+    }
     await this.xdotool(['type', '--clearmodifiers', '--delay', String(delayMs), '--', text], operation, display);
   }
 
@@ -783,6 +827,15 @@ export class LocalComputerAdapter implements ComputerAdapter {
     const operation = 'input.key';
     if (key.length === 0 || key.length > 256 || key.includes('\0')) {
       throw adapterError('INVALID_INPUT', operation, 'Key sequence is invalid.');
+    }
+    if (platform() === 'darwin') {
+      requireCapability(this.config.desktop.hostDisplayAccess && this.config.desktop.input, operation, 'Desktop input is disabled.');
+      try {
+        requireMacDisplay(display);
+        const parsed = parseMacKey(key);
+        await macInput('key', [String(parsed.keyCode), JSON.stringify(parsed.modifiers)]);
+      } catch (error) { mapOsError(error, operation); }
+      return;
     }
     await this.xdotool(['key', '--clearmodifiers', key], operation, display);
   }

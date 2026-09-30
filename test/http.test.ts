@@ -6,6 +6,7 @@ import { LocalComputerAdapter } from '../src/adapter/local-computer-adapter.js';
 import { ConcurrencyController } from '../src/concurrency.js';
 import { parseConfig } from '../src/config.js';
 import { createComputerHttpServer } from '../src/http-server.js';
+import { decodeRpc } from '../src/hotswap/sse.js';
 
 async function withServer(
   configValue: unknown,
@@ -49,6 +50,58 @@ test('MCP endpoint enforces configured bearer token', async () => {
       headers: { Authorization: 'Bearer secret' },
     });
     assert.notEqual(admitted.status, 401);
+    const publicMetrics = await (await fetch(`${baseUrl}/metrics`)).json();
+    assert.equal('originToolResults' in publicMetrics, false);
+    const privateMetrics = await (await fetch(`${baseUrl}/metrics`, { headers: { Authorization: 'Bearer secret' } })).json();
+    assert.equal(typeof privateMetrics.originToolResults, 'object');
+  });
+});
+
+test('MCP tunnel origin Space is available to its shell call without leaking to another call', async () => {
+  await withServer({ shell: { enabled: true, allowedCommands: ['node'] } }, async baseUrl => {
+    const call = async (origin?: string) => {
+      const response = await fetch(`${baseUrl}/mcp`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream',
+          ...(origin ? { 'x-chat-bridge-origin-space': encodeURIComponent(origin) } : {}) },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: {
+          name: 'shell.exec', arguments: { command: 'node', args: ['-e', 'process.stdout.write(process.env.CHAT_BRIDGE_FROM_SPACE || "")'] },
+        } }),
+      });
+      assert.equal(response.status, 200);
+      const body = decodeRpc(new Uint8Array(await response.arrayBuffer()), response.headers.get('content-type') ?? undefined) as { result: { structuredContent: { stdout: string } } };
+      return body.result.structuredContent.stdout;
+    };
+    assert.equal(await call('QC2- Agent'), 'QC2- Agent');
+    assert.equal(await call(), '');
+  });
+});
+
+test('stable account origin is isolated to its MCP request', async () => {
+  await withServer({ shell: { enabled: true, allowedCommands: ['node'] } }, async baseUrl => {
+    const call = async (account?: string) => {
+      const response = await fetch(`${baseUrl}/mcp`, {
+        method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream',
+          ...(account ? { 'x-chat-bridge-origin-account': account } : {}) },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: {
+          name: 'shell.exec', arguments: { command: 'node', args: ['-e', 'process.stdout.write(process.env.CHAT_BRIDGE_FROM_ACCOUNT_ID || "")'] },
+        } }),
+      });
+      if (response.status !== 200) return { status: response.status };
+      const body = decodeRpc(new Uint8Array(await response.arrayBuffer()), response.headers.get('content-type') ?? undefined) as { result: { structuredContent: { stdout: string } } };
+      return { status: 200, stdout: body.result.structuredContent.stdout };
+    };
+    assert.deepEqual(await call('a'.repeat(64)), { status: 200, stdout: 'a'.repeat(64) });
+    assert.deepEqual(await call(), { status: 200, stdout: '' });
+    assert.deepEqual(await call('bad'), { status: 400 });
+    assert.deepEqual(await Promise.all([call('b'.repeat(64)), call('c'.repeat(64)), call()]), [
+      { status: 200, stdout: 'b'.repeat(64) }, { status: 200, stdout: 'c'.repeat(64) }, { status: 200, stdout: '' },
+    ]);
+    const metrics = await (await fetch(`${baseUrl}/metrics`)).json();
+    assert.equal(metrics.originToolResults['b'.repeat(64)].operation, 'shell.exec');
+    assert.equal(metrics.originToolResults['c'.repeat(64)].status, 'RETURNED');
+    assert.equal(typeof metrics.originToolResults['b'.repeat(64)].observedAt, 'string');
+    assert.equal(JSON.stringify(metrics.originToolResults).includes('stdout'), false);
   });
 });
 

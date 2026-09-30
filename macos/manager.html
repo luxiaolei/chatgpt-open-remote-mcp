@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>本机连接中心</title>
+<style>
+  :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; background: #f4f7fb; color: #182438; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-width: 360px; }
+  main { max-width: 1040px; margin: 0 auto; padding: 28px 24px 72px; }
+  h1 { margin: 5px 0 0; font-size: clamp(28px, 4vw, 38px); letter-spacing: -.045em; }
+  h2 { margin: 0 0 14px; font-size: 19px; letter-spacing: -.02em; }
+  h3 { font-size: 15px; }
+  p { line-height: 1.55; }
+  .muted { color: #677387; font-size: 14px; }
+  .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; margin-bottom: 18px; padding: 26px 30px; border-radius: 22px; color: white; background: linear-gradient(125deg, #14294c, #26468b 70%, #287c9c); box-shadow: 0 18px 40px #102d5b24; }
+  .top p { margin: 8px 0 0; color: #d9e7f8; }
+  .eyebrow { color: #8ce3dc; font-size: 11px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
+  .top button { background: #ffffff1c; border-color: #ffffff45; color: white; }
+  .top button:hover { background: #ffffff32; }
+  .overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .overview article { background: white; border: 1px solid #e1e9f3; border-radius: 16px; padding: 15px 18px; box-shadow: 0 4px 16px #102d5b0a; }
+  .overview span { display: block; color: #65758a; font-size: 12px; font-weight: 700; }
+  .overview strong { display: block; margin-top: 6px; font-size: 19px; letter-spacing: -.025em; }
+  .card { background: white; border: 1px solid #e1e9f3; border-radius: 18px; padding: 24px; box-shadow: 0 6px 24px #102d5b0b; margin: 16px 0; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .row + .row { margin-top: 14px; }
+  .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+  button { appearance: none; border: 1px solid #d5dce7; border-radius: 10px; background: white; color: #1d2a3b; font: inherit; font-size: 14px; font-weight: 600; min-height: 42px; padding: 9px 14px; cursor: pointer; }
+  button:hover { background: #f2f5fa; }
+  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #7babff; outline-offset: 2px; }
+  button:disabled { opacity: .55; cursor: wait; }
+  button.primary { color: white; background: #285ec0; border-color: #285ec0; }
+  button.primary:hover { background: #194ca7; }
+  button.quiet { border: 0; color: #285bb5; }
+  a { color: #2459b4; }
+  .pill { display: inline-flex; align-items: center; gap: 7px; border-radius: 100px; padding: 6px 11px; font-size: 12px; font-weight: 700; background: #f0f2f5; color: #536071; white-space: nowrap; }
+  .pill::before { content: ""; height: 7px; width: 7px; background: #8994a4; border-radius: 50%; }
+  .pill.online { color: #176340; background: #e8f7ef; }
+  .pill.online::before { background: #27a86f; }
+  .pill.offline { color: #9b5b1d; background: #fff4e5; }
+  .pill.offline::before { background: #e2a046; }
+  .permission-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 18px 0 12px; }
+  .permission { display: flex; align-items: flex-start; gap: 11px; padding: 15px; border: 1px solid #dfe7f1; border-radius: 13px; background: #f8faff; cursor: pointer; }
+  .permission:hover { border-color: #8daee0; }
+  .permission input { width: 19px; height: 19px; min-height: 19px; flex: none; margin: 2px 0 0; accent-color: #285ec0; }
+  .permission strong, .permission small { display: block; }
+  .permission strong { font-size: 14px; }
+  .permission small { color: #63728a; font-size: 12px; font-weight: 400; line-height: 1.4; margin-top: 4px; }
+  .warning { background: #fff8e8; color: #7a541c; border: 1px solid #f2dfb4; }
+  .list { list-style: none; padding: 0; margin: 10px 0 16px; }
+  .list li { border: 1px solid #e8ecf2; border-radius: 12px; padding: 13px 14px; margin: 8px 0; background: #fcfdff; }
+  .path { overflow-wrap: anywhere; font-size: 14px; }
+  .account-title { font-weight: 700; }
+  .detail { margin: 5px 0 0; color: #677387; font-size: 13px; }
+  .account-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #718094; font-size: 12px; overflow-wrap: anywhere; margin: 5px 0 0; }
+  form { display: grid; gap: 14px; margin-top: 20px; padding-top: 18px; border-top: 1px solid #e8ecf2; }
+  label { display: grid; gap: 6px; font-size: 13px; font-weight: 650; }
+  input:not([type="checkbox"]) { width: 100%; min-height: 43px; border: 1px solid #cbd4e1; border-radius: 9px; padding: 8px 11px; font: inherit; font-size: 14px; }
+  select { min-height: 43px; border: 1px solid #cbd4e1; border-radius: 9px; padding: 8px 11px; font: inherit; font-size: 14px; background: white; }
+  .tabs { display: flex; gap: 8px; padding: 6px; border-radius: 14px; background: #e9eff8; margin: 20px 0; }
+  .tabs button { flex: 1; border: 0; background: transparent; }
+  .tabs button[aria-selected="true"] { color: #173d87; background: white; box-shadow: 0 3px 10px #102d5b17; }
+  .mini-form { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; margin: 12px 0; padding: 13px; border-radius: 12px; background: #f7f9fd; }
+  .mini-form label { min-width: 160px; flex: 1; }
+  .mini-form button { flex: none; }
+  .choices { display: flex; flex-wrap: wrap; gap: 8px 15px; margin: 9px 0; }
+  .choices label { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; }
+  .choices input { accent-color: #285ec0; }
+  .status-grid { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+  .bridge-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 9px; margin: 10px 0 18px; }
+  .bridge-summary li { margin: 0; }
+  .table-wrap { overflow-x: auto; border: 1px solid #e3e9f2; border-radius: 14px; margin: 10px 0 20px; }
+  .project-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 13px; }
+  .project-table th { padding: 11px 13px; color: #617087; background: #f5f8fc; text-align: left; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
+  .project-table td { padding: 13px; border-top: 1px solid #edf0f5; vertical-align: top; }
+  .project-table tbody tr:hover { background: #f8fbff; }
+  .project-table strong { display: block; color: #1b2940; font-size: 14px; }
+  .table-meta { color: #64738a; line-height: 1.45; margin-top: 3px; }
+  .metric { font-variant-numeric: tabular-nums; font-weight: 800; color: #224a92; white-space: nowrap; }
+  .metric.hot { color: #b42318; }
+  .state-chip { display: inline-flex; align-items: center; border-radius: 999px; padding: 5px 9px; font-size: 11px; font-weight: 800; white-space: nowrap; }
+  .state-chip.running { color: #176340; background: #e5f7ed; }
+  .state-chip.paused { color: #82530f; background: #fff3d7; }
+  .state-chip.draining { color: #245a99; background: #e4f0ff; }
+  .state-chip.archived, .state-chip.unknown { color: #596678; background: #edf0f4; }
+  .state-chip.attention { color: #a12626; background: #ffe8e8; }
+  .space-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px; margin: 10px 0 20px; }
+  .space-card { border: 1px solid #e3e9f2; border-radius: 14px; padding: 14px; background: #fbfdff; }
+  .space-card.managed { border-color: #b9d8ff; background: #f4f9ff; }
+  .space-card.manual { border-color: #ecd8ad; background: #fffaf0; }
+  .space-card strong { display: block; font-size: 14px; }
+  .space-card .raw-name { color: #778398; font-size: 12px; margin-top: 4px; overflow-wrap: anywhere; }
+  .space-card .space-projects { color: #53657d; font-size: 12px; line-height: 1.45; margin-top: 8px; }
+  .advanced-panel { margin-top: 18px; border-top: 1px solid #e8ecf2; padding-top: 13px; }
+  .advanced-panel summary { color: #285bb5; cursor: pointer; font-weight: 700; }
+  .notice { padding: 12px 14px; border-radius: 10px; background: #edf3ff; color: #284773; font-size: 13px; line-height: 1.5; }
+  .error { color: #9d2727; background: #fff0f0; }
+  #message { min-height: 1.5em; }
+  [hidden] { display: none !important; }
+  @media (max-width: 720px) { .permission-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 580px) { main { padding: 16px 14px 52px; } .top, .row { align-items: flex-start; flex-direction: column; } .top { padding: 24px; } .card { padding: 19px; } .overview { grid-template-columns: 1fr; } }
+</style>
+<main>
+  <header class="top">
+    <div><div class="eyebrow">ChatGPT Computer · Local</div><h1>项目与连接中心</h1><p>看清项目、任务和账号资源；连接与电脑权限也在这里管理。</p></div>
+    <button id="refresh" type="button">刷新状态</button>
+  </header>
+
+  <div class="overview" aria-label="连接概览">
+    <article><span>本机服务</span><strong id="overview-backend">检查中</strong></article>
+    <article><span>电脑隧道</span><strong id="overview-accounts">检查中</strong></article>
+    <article><span>当前权限</span><strong id="overview-access">检查中</strong></article>
+  </div>
+
+  <p id="message" role="status" aria-live="polite"></p>
+
+  <nav class="tabs" role="tablist" aria-label="控制台页面">
+    <button id="tab-projects" role="tab" aria-controls="bridge" aria-selected="true" type="button">项目与任务</button>
+    <button id="tab-accounts" role="tab" aria-controls="accounts-section" aria-selected="false" type="button">账号与连接</button>
+    <button id="tab-settings" role="tab" aria-controls="access" aria-selected="false" type="button">电脑设置</button>
+  </nav>
+
+  <section id="computer-section" class="card" aria-labelledby="computer-heading" hidden>
+    <div class="row"><h2 id="computer-heading">这台 Mac</h2><span id="backend-status" class="pill">检查中</span></div>
+    <p class="muted">服务在本机后台运行。关闭这个页面不会断开已经建立的连接。</p>
+    <div class="actions"><button id="start-backend" class="primary" type="button">启动或重启本机服务</button></div>
+  </section>
+
+  <section id="access" class="card" aria-labelledby="access-heading" hidden>
+    <h2 id="access-heading">电脑访问权限</h2>
+    <p class="muted">这里的设置由所有已连接账号共用。修改后保存并重启本机服务才会生效。</p>
+    <div class="permission-grid">
+      <label class="permission"><input id="cap-write" type="checkbox"><span><strong>写入文件</strong><small>可在下面选定的文件夹中创建、修改和删除文件。</small></span></label>
+      <label class="permission"><input id="cap-commands" type="checkbox"><span><strong>运行任意命令</strong><small>以当前 Mac 用户身份执行，无文件夹边界。</small></span></label>
+      <label class="permission"><input id="cap-view" type="checkbox"><span><strong>查看主屏幕</strong><small>截取主屏幕画面；需要 macOS 的屏幕录制权限。</small></span></label>
+      <label class="permission"><input id="cap-control" type="checkbox"><span><strong>控制主屏幕</strong><small>移动鼠标、点击和键盘输入；需要辅助功能权限。</small></span></label>
+    </div>
+    <div class="notice warning">任意命令会以当前 Mac 用户身份运行，可访问所选文件夹以外的内容。屏幕操作还需 macOS 的“屏幕录制”和“辅助功能”权限；开关开启不等于系统权限已授予。</div>
+    <h3>已授权文件夹</h3>
+    <ul id="roots" class="list" aria-label="已授权文件夹"></ul>
+    <div class="actions"><button id="pick-folder" type="button">选择文件夹</button><button id="save-roots" class="primary" type="button">保存权限并重启服务</button></div>
+  </section>
+
+  <section id="accounts-section" class="card" aria-labelledby="accounts-heading" hidden>
+    <div class="row"><h2 id="accounts-heading">ChatGPT 账号</h2><button id="show-add" type="button">添加账号</button></div>
+    <div class="notice">每个账号使用自己的 OpenAI 隧道 ID 和运行密钥。这里显示的是隧道是否正在连通；最终还需在该账号的 ChatGPT 中调用 <code>system.info</code> 验证。</div>
+    <ul id="accounts" class="list" aria-label="已添加账号"></ul>
+    <form id="add-form" hidden>
+      <label>账号备注名称<input name="label" autocomplete="off" maxlength="64" placeholder="例如：工作账号" required></label>
+      <label>隧道 ID<input name="tunnelId" autocomplete="off" spellcheck="false" placeholder="tunnel_..." required></label>
+      <label>运行 API Key<input name="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-..." required></label>
+      <div class="actions"><button class="primary" type="submit">保存并连接</button><button id="cancel-add" type="button">取消</button></div>
+      <p class="muted">先在对应账号的 <a href="https://platform.openai.com/settings/organization/tunnels" target="_blank" rel="noopener">OpenAI 隧道设置</a>创建隧道和运行密钥。密钥仅保存在这台 Mac，不会显示在状态页。</p>
+    </form>
+    <p class="muted">隧道在线后，到该账号的 <a href="https://chatgpt.com/plugins" target="_blank" rel="noopener">ChatGPT 插件页面</a>新建连接，选择 Tunnel 并填入相应 ID。</p>
+    <h3>浏览器登录身份</h3>
+    <ul id="bridge-accounts" class="list" aria-label="Bridge 账号"></ul>
+  </section>
+
+  <section id="bridge" class="card" aria-labelledby="bridge-heading">
+    <div class="row"><h2 id="bridge-heading">Chat Bridge</h2><span id="bridge-status" class="pill">检查中</span></div>
+    <p class="muted">这里显示 Bridge 的本地记录，不会在刷新页面时访问 ChatGPT；整理后的显示名只用于阅读，Space 卡片同时保留实际名称。</p>
+    <h3>业务项目</h3>
+    <form id="project-add" class="mini-form">
+      <label>新项目名称<input name="name" maxlength="100" autocomplete="off" placeholder="例如：HZ OS" required></label>
+      <button type="submit">新增业务项目</button>
+    </form>
+    <h3>运行情况一览</h3>
+    <div id="bridge-project-table" class="table-wrap" aria-label="Bridge 项目运行一览"></div>
+    <h3>Space 清单</h3>
+    <div id="bridge-spaces" class="space-grid" aria-label="ChatGPT Space 清单"></div>
+    <details class="advanced-panel">
+      <summary>展开项目管理、运行明细与持久队列</summary>
+      <h3>运行明细</h3>
+      <ul id="bridge-summary" class="list bridge-summary" aria-label="Bridge 运行摘要"></ul>
+      <ul id="bridge-projects" class="list" aria-label="Bridge 项目"></ul>
+      <h3>持久队列</h3>
+      <ul id="queue-operations" class="list" aria-label="最近调度"></ul>
+    </details>
+    <p class="muted">接收任务、发出消息、回答就绪、业务验收是不同状态；此页读取本机记录，不代表 ChatGPT 当前在线。</p>
+  </section>
+</main>
+<script>
+  const $ = id => document.getElementById(id);
+  let roots = [];
+  let rootsDirty = false;
+  let accessDirty = false;
+  let busy = false;
+  let currentView = 'projects';
+  const states = { online: '在线', offline: '未连接', stopped: '已停用' };
+
+  function showView(view) {
+    currentView = view;
+    $('bridge').hidden = view !== 'projects';
+    $('accounts-section').hidden = view !== 'accounts';
+    $('computer-section').hidden = view !== 'settings';
+    $('access').hidden = view !== 'settings';
+    for (const name of ['projects', 'accounts', 'settings']) {
+      $('tab-' + name).setAttribute('aria-selected', String(name === view));
+      $('tab-' + name).tabIndex = name === view ? 0 : -1;
+    }
+  }
+  for (const name of ['projects', 'accounts', 'settings']) $('tab-' + name).onclick = () => showView(name);
+  const views = ['projects', 'accounts', 'settings'];
+  for (const [index, name] of views.entries()) $('tab-' + name).onkeydown = event => {
+    const next = { ArrowRight: (index + 1) % views.length, ArrowLeft: (index + views.length - 1) % views.length, Home: 0, End: views.length - 1 }[event.key];
+    if (next === undefined) return;
+    event.preventDefault(); showView(views[next]); $('tab-' + views[next]).focus();
+  };
+
+  function message(text, error = false) {
+    const box = $('message');
+    box.textContent = text;
+    box.className = error ? 'notice error' : text ? 'notice' : '';
+  }
+
+  async function api(path, body) {
+    const response = await fetch(path, body === undefined ? {} : {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const value = await response.json();
+    if (!response.ok) throw new Error(value.error || '操作失败');
+    return value;
+  }
+
+  async function action(work, success, reload = true) {
+    if (busy) return;
+    busy = true;
+    document.querySelectorAll('button, input[type="checkbox"]').forEach(control => control.disabled = true);
+    message('正在处理…');
+    try { await work(); message(success); if (reload) await refresh(); }
+    catch (error) { message(error.message, true); }
+    finally { busy = false; document.querySelectorAll('button, input[type="checkbox"]').forEach(control => control.disabled = false); }
+  }
+
+  function capabilities() {
+    return { write: $('cap-write').checked, commands: $('cap-commands').checked, screenView: $('cap-view').checked, screenControl: $('cap-control').checked };
+  }
+
+  function renderRoots() {
+    const list = $('roots'); list.replaceChildren();
+    if (!roots.length) { const item = document.createElement('li'); item.textContent = '尚未授权文件夹'; item.className = 'muted'; list.append(item); }
+    for (const path of roots) {
+      const item = document.createElement('li'); item.className = 'row';
+      const name = document.createElement('span'); name.className = 'path'; name.textContent = path;
+      const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'quiet'; remove.textContent = '移除';
+      remove.setAttribute('aria-label', `移除 ${path}`);
+      remove.onclick = () => { roots = roots.filter(value => value !== path); rootsDirty = true; renderRoots(); message('授权列表已改动，请保存并重启服务。'); };
+      item.append(name, remove); list.append(item);
+    }
+  }
+
+  function renderAccounts(accounts, bridgeAccounts = []) {
+    const list = $('accounts'); list.replaceChildren();
+    if (!accounts.length) { const item = document.createElement('li'); item.textContent = '还没有添加账号'; item.className = 'muted'; list.append(item); }
+    for (const account of accounts) {
+      const item = document.createElement('li');
+      const row = document.createElement('div'); row.className = 'row';
+      const detail = document.createElement('div');
+      const linked = bridgeAccounts.find(item => item.id === account.accountId);
+      const title = document.createElement('div'); title.className = 'account-title'; title.textContent = linked?.label || account.label;
+      const id = document.createElement('div'); id.className = 'account-id'; id.textContent = account.tunnelId;
+      const age = document.createElement('p'); age.className = 'detail';
+      age.textContent = account.state === 'online' ? `最近通信：${account.pollAgeSeconds} 秒前` : account.enabled ? '等待隧道连接' : '已停用';
+      const binding = document.createElement('p'); binding.className = 'detail';
+      binding.textContent = linked ? `连接备注：${account.label} · 登录身份已绑定` : '来源账号未绑定；请在下方选择已核实登录身份。';
+      const result = document.createElement('p'); result.className = 'detail';
+      result.textContent = account.lastToolResult
+        ? `最近本机工具结果：${account.lastToolResult.observedAt} · ${account.lastToolResult.operation} · ${account.lastToolResult.status === 'RETURNED' ? '已返回' : '错误'}`
+        : '尚无本机工具结果记录（后台重启后重新计）；隧道在线仅表示连接健康。';
+      detail.append(title, id, binding, age, result);
+      const status = document.createElement('span'); status.className = `pill ${account.state}`; status.textContent = states[account.state] || account.state;
+      row.append(detail, status);
+      const buttons = document.createElement('div'); buttons.className = 'actions'; buttons.style.marginTop = '12px';
+      const copy = document.createElement('button'); copy.textContent = '复制隧道 ID'; copy.onclick = async () => { await navigator.clipboard.writeText(account.tunnelId); message('隧道 ID 已复制。'); };
+      const toggle = document.createElement('button'); toggle.textContent = account.enabled ? '停用连接' : '启用连接';
+      toggle.onclick = () => action(() => api(`/api/account/${account.id}/${account.enabled ? 'stop' : 'start'}`, {}), account.enabled ? '连接已停用。' : '连接已启动，请等待状态更新。');
+      const settings = document.createElement('div'); settings.className = 'actions'; settings.style.marginTop = '12px';
+      const nameLabel = document.createElement('label'); nameLabel.textContent = '连接简写';
+      const name = document.createElement('input'); name.value = account.label; name.maxLength = 64; nameLabel.append(name);
+      const loginLabel = document.createElement('label'); loginLabel.textContent = '对应 ChatGPT 登录';
+      const login = document.createElement('select');
+      const blank = document.createElement('option'); blank.value = ''; blank.textContent = '选择已核实账号'; login.append(blank);
+      for (const candidate of bridgeAccounts.filter(item => item.id && item.identified)) {
+        const option = document.createElement('option'); option.value = candidate.id; option.textContent = candidate.label; login.append(option);
+      }
+      login.value = account.accountId || '';
+      loginLabel.append(login);
+      const save = document.createElement('button'); save.type = 'button'; save.textContent = '保存账号关联';
+      save.onclick = () => action(() => api(`/api/account/${account.id}/update`, { label: name.value, accountId: login.value }), '账号关联已保存；已启用连接会重新连接。');
+      settings.append(nameLabel, loginLabel, save);
+      buttons.append(copy, toggle); item.append(row, settings, buttons); list.append(item);
+    }
+  }
+
+  function renderBridge(bridge) {
+    const taskLabels = { QUEUED: '排队', DISPATCHING: '待发送', SENT: '已发送', GENERATING: '生成中', RESPONSE_READY: '回答就绪', DELIVERY_UNKNOWN: '发送待核实',
+      DISPATCHED: '已派发', RUNNING: '运行中', RECOVERING: '恢复中', AWAITING_DURABLE_UPDATE: '待核对结果', BLOCKED: '受阻', CANCELLED: '已取消', OTHER: '其他' };
+    const badge = $('bridge-status');
+    badge.className = `pill ${bridge.available ? 'online' : ''}`;
+    badge.textContent = bridge.available ? '已读取本地记录' : '尚未配置';
+    const accountList = $('bridge-accounts'); accountList.replaceChildren();
+    const projectTable = $('bridge-project-table'); projectTable.replaceChildren();
+    const spaceGrid = $('bridge-spaces'); spaceGrid.replaceChildren();
+    const summaryList = $('bridge-summary'); summaryList.replaceChildren();
+    const projectList = $('bridge-projects'); projectList.replaceChildren();
+    const queueList = $('queue-operations'); queueList.replaceChildren();
+    if (!bridge.available) {
+      const item = document.createElement('li'); item.className = 'muted'; item.textContent = '尚未配置 Chat Bridge。'; accountList.append(item);
+      projectTable.textContent = '尚未配置 Chat Bridge。';
+      spaceGrid.textContent = '尚未读取 Space。';
+      return;
+    }
+    for (const account of bridge.accounts) {
+      const item = document.createElement('li');
+      const name = document.createElement('div'); name.className = 'account-title'; name.textContent = account.label;
+      const detail = document.createElement('p'); detail.className = 'detail'; detail.textContent = `${account.aliases.join(' / ')} · ${account.identified ? '身份已核对' : '身份未核对'}`;
+      item.append(name, detail);
+      if (account.id && account.identified) {
+        const form = document.createElement('div'); form.className = 'mini-form';
+        const shortLabel = document.createElement('label'); shortLabel.textContent = '简写';
+        const short = document.createElement('input'); short.value = account.shortName || account.label; short.maxLength = 64; shortLabel.append(short);
+        const limitLabel = document.createElement('label'); limitLabel.textContent = '本地并发上限';
+        const limit = document.createElement('input'); limit.type = 'number'; limit.min = 1; limit.max = 20; limit.value = account.maxActiveTasks || 3; limitLabel.append(limit);
+        const acceptLabel = document.createElement('label'); acceptLabel.textContent = '接收新任务';
+        const accept = document.createElement('input'); accept.type = 'checkbox'; accept.checked = account.acceptNewTasks !== false; acceptLabel.append(accept);
+        const save = document.createElement('button'); save.type = 'button'; save.textContent = '保存账号策略';
+        save.onclick = () => action(() => api('/api/bridge/config', { type: 'account', accountId: account.id,
+          shortName: short.value, maxActiveTasks: Number(limit.value), acceptNewTasks: accept.checked }), '账号策略已保存；不强停已有任务。');
+        form.append(shortLabel, limitLabel, acceptLabel, save); item.append(form);
+      }
+      accountList.append(item);
+    }
+    if (!bridge.accounts.length) {
+      const item = document.createElement('li'); item.className = 'muted'; item.textContent = '还没有 Bridge 账号'; accountList.append(item);
+    }
+    const controlProjects = bridge.control?.projects || [];
+    const controlByProject = new Map(controlProjects.map(project => [project.project, project]));
+    const accountLabel = alias => bridge.accounts.find(account => account.aliases.includes(alias))?.label || alias || '未识别账号';
+    const modeText = mode => ({ RUNNING: '运行中', PAUSED: '已暂停', DRAINING: '排空中', ARCHIVED: '已归档', UNKNOWN: '待核实' }[mode] || mode);
+    const modeClass = mode => ({ RUNNING: 'running', PAUSED: 'paused', DRAINING: 'draining', ARCHIVED: 'archived' }[mode] || 'unknown');
+    const executionClass = color => ({ green: 'running', blue: 'draining', amber: 'paused', red: 'attention', gray: 'unknown' }[color] || 'unknown');
+    const textLine = (tag, className, text) => { const line = document.createElement(tag); line.className = className; line.textContent = text; return line; };
+    const projects = [...bridge.projects].sort((a, b) => (controlByProject.get(b.key)?.tasks?.active ?? b.activeTasks ?? 0) - (controlByProject.get(a.key)?.tasks?.active ?? a.activeTasks ?? 0) || a.displayName.localeCompare(b.displayName, 'zh-CN'));
+    const table = document.createElement('table'); table.className = 'project-table';
+    table.innerHTML = '<thead><tr><th>业务项目</th><th>ChatGPT 账号 / Space</th><th>执行状态</th><th>运行数量</th><th>接收状态</th><th>需要关注</th></tr></thead>';
+    const body = document.createElement('tbody');
+    for (const project of projects) {
+      const control = controlByProject.get(project.key) || controlByProject.get(project.name) || {};
+      const admission = control.admission || control.control || {};
+      const attention = control.attention || {};
+      const mode = admission.mode || (project.archived ? 'ARCHIVED' : 'UNKNOWN');
+      const active = control.tasks?.active ?? project.activeTasks ?? 0;
+      const blocked = control.tasks?.blocked ?? project.taskStates.find(row => row.status === 'BLOCKED')?.count ?? 0;
+      const failed = control.tasks?.failed ?? project.taskStates.find(row => row.status === 'FAILED')?.count ?? 0;
+      const unknown = attention.unknownOperations ?? control.operationSummary?.unknown ?? 0;
+      const pending = attention.pendingManagement ?? control.management?.pending ?? 0;
+      const waitingAck = attention.awaitingControllerAck ?? control.results?.awaitingControllerAck ?? 0;
+      const issue = blocked + failed + unknown + pending + waitingAck;
+      const row = document.createElement('tr');
+      const projectCell = document.createElement('td');
+      projectCell.append(textLine('strong', '', project.displayName), textLine('div', 'table-meta', `会话 ${project.sessions} · 已核实绑定 ${project.bindings.filter(binding => binding.ready).length}`));
+      const locationCell = document.createElement('td');
+      locationCell.append(textLine('strong', '', (project.accountNames || [accountLabel(project.account)]).join('、')), textLine('div', 'table-meta', (project.spaceDisplayNames || []).join('、') || 'Space 未记录'));
+      const executionCell = document.createElement('td');
+      const execution = control.execution || {};
+      const executionState = document.createElement('span'); executionState.className = `state-chip ${executionClass(execution.color)}`;
+      executionState.textContent = execution.label || (active ? '有活动任务' : '当前无可执行任务');
+      executionCell.append(executionState);
+      if (execution.recentlyObservedGenerating || execution.queued || execution.deliveryUnknown) {
+        executionCell.append(textLine('div', 'table-meta', `生成 ${execution.recentlyObservedGenerating || 0} · 排队 ${execution.queued || 0} · 待核对 ${execution.deliveryUnknown || 0}`));
+      }
+      const runningCell = document.createElement('td');
+      runningCell.append(textLine('div', `metric ${issue ? 'hot' : ''}`, `${active} 个运行中`), textLine('div', 'table-meta', blocked ? `受阻 ${blocked}` : '无受阻任务'));
+      const stateCell = document.createElement('td');
+      const state = document.createElement('span'); state.className = `state-chip ${modeClass(mode)}`; state.textContent = modeText(mode); stateCell.append(state);
+      const attentionCell = document.createElement('td');
+      const attentionState = document.createElement('span'); attentionState.className = `state-chip ${issue ? 'attention' : 'running'}`;
+      attentionState.textContent = issue ? `待处理 ${issue}` : '正常'; attentionCell.append(attentionState);
+      row.append(projectCell, locationCell, executionCell, runningCell, stateCell, attentionCell); body.append(row);
+    }
+    if (!bridge.projects.length) { const row = document.createElement('tr'); const cell = textLine('td', 'muted', '还没有 Bridge 项目'); cell.colSpan = 6; row.append(cell); body.append(row); }
+    table.append(body); projectTable.append(table);
+    for (const space of [...(bridge.spaces || [])].sort((a, b) => Number(b.ownership === 'agent') - Number(a.ownership === 'agent') || String(a.displayName).localeCompare(String(b.displayName), 'zh-CN'))) {
+      const card = document.createElement('article'); card.className = `space-card ${space.ownership === 'agent' ? 'managed' : 'manual'}`;
+      const title = document.createElement('strong'); title.textContent = space.displayName || space.name;
+      const kind = document.createElement('span'); kind.className = `state-chip ${space.ownership === 'agent' ? 'running' : 'paused'}`;
+      kind.textContent = space.ownership === 'agent' ? 'Bridge 管理' : space.ownership === 'unconfirmed' ? '待确认' : '手动空间';
+      const raw = document.createElement('div'); raw.className = 'raw-name'; raw.textContent = `实际名称：${space.name || '未命名'}`;
+      const detail = document.createElement('div'); detail.className = 'table-meta'; detail.textContent = `${space.accountName || space.account || '未识别账号'} · ${space.profileId || 'Profile 未记录'}`;
+      const projects = document.createElement('div'); projects.className = 'space-projects'; projects.textContent = space.projectNames?.length ? `包含 Project：${space.projectNames.join('、')}` : '尚未观察到 Project';
+      card.append(title, kind, raw, detail, projects); spaceGrid.append(card);
+    }
+    if (!(bridge.spaces || []).length) spaceGrid.textContent = '尚未观察到 Space。';
+    for (const project of controlProjects) {
+      const item = document.createElement('li');
+      const name = document.createElement('div'); name.className = 'account-title'; name.textContent = project.project;
+      const admission = project.admission || project.control || {};
+      const attention = project.attention || {};
+      const detail = document.createElement('p'); detail.className = 'detail';
+      const mode = admission.mode || 'UNKNOWN';
+      detail.textContent = `${mode === 'RUNNING' && admission.acceptingNewWork !== false ? '接收新任务' : '暂停接收'} · 活动 ${project.tasks?.active ?? 0} · 受阻 ${project.tasks?.blocked ?? 0} · 失败 ${project.tasks?.failed ?? 0}`;
+      const warning = document.createElement('p'); warning.className = 'detail';
+      warning.textContent = `待核对 UNKNOWN ${attention.unknownOperations ?? project.operationSummary?.unknown ?? 0} · 管理待处理 ${attention.pendingManagement ?? project.management?.pending ?? 0} · 总控 ACK ${attention.awaitingControllerAck ?? project.results?.awaitingControllerAck ?? 0}`;
+      item.append(name, detail, warning); summaryList.append(item);
+    }
+    if (!controlProjects.length) {
+      const item = document.createElement('li'); item.className = 'muted';
+      item.textContent = bridge.control?.unavailable ? '总控状态暂不可用。' : '还没有总控项目状态。'; summaryList.append(item);
+    }
+    for (const project of bridge.projects) {
+      const item = document.createElement('li');
+      const name = document.createElement('div'); name.className = 'account-title'; name.textContent = project.displayName;
+      const detail = document.createElement('p'); detail.className = 'detail';
+      detail.textContent = `原总控账号：${bridge.accounts.find(account => account.aliases.includes(project.account))?.label || project.account} · 活跃会话 ${project.sessions} · 活动任务 ${project.activeTasks}`;
+      item.append(name, detail); projectList.append(item);
+      const relation = document.createElement('p'); relation.className = 'detail';
+      const available = project.allowedAccounts.filter(alias => project.bindings.some(binding => binding.account === alias && binding.ready));
+      relation.textContent = `新任务可用账号：${available.map(alias => bridge.accounts.find(account => account.aliases.includes(alias))?.label || alias).join('、') || '尚未核实'} · 已核实 Project 绑定 ${project.bindings.filter(binding => binding.ready).length} 个`;
+      item.append(relation);
+      const pendingBindings = project.bindings.filter(binding => !binding.ready);
+      if (pendingBindings.length) {
+        const warning = document.createElement('p'); warning.className = 'detail';
+        warning.textContent = `待核实 Project：${pendingBindings.map(binding => bridge.accounts.find(account => account.aliases.includes(binding.account))?.label || binding.account).join('、')}`;
+        item.append(warning);
+      }
+      if (project.workgroups.length) {
+        const groups = document.createElement('p'); groups.className = 'detail';
+        groups.textContent = `工作组：${project.workgroups.map(group => `${group.name}${group.controllerSessionRef ? '（已登记总控）' : '（待登记总控）'}`).join('、')}`;
+        item.append(groups);
+      }
+      if (project.taskStates.length) {
+        const statuses = document.createElement('div'); statuses.className = 'status-grid';
+        for (const row of project.taskStates) {
+          const pill = document.createElement('span'); pill.className = 'pill'; pill.textContent = `${taskLabels[row.status] || row.status} ${row.count}`;
+          statuses.append(pill);
+        }
+        item.append(statuses);
+      }
+      const form = document.createElement('div'); form.className = 'mini-form';
+      const nameLabel = document.createElement('label'); nameLabel.textContent = '项目显示名称';
+      const nameInput = document.createElement('input'); nameInput.value = project.displayName; nameInput.maxLength = 100; nameLabel.append(nameInput);
+      const accountsLabel = document.createElement('div'); accountsLabel.className = 'choices';
+      const seen = new Set(); const checks = [];
+      for (const binding of project.bindings.filter(binding => binding.ready)) {
+        const actual = bridge.accounts.find(account => account.aliases.includes(binding.account));
+        if (actual?.id && seen.has(actual.id)) continue;
+        if (actual?.id) seen.add(actual.id);
+        const label = document.createElement('label');
+        const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = project.allowedAccounts.includes(binding.account);
+        const title = document.createElement('span'); title.textContent = actual?.label || binding.account;
+        label.append(checkbox, title); accountsLabel.append(label); checks.push([binding.account, checkbox]);
+      }
+      const archiveLabel = document.createElement('label'); archiveLabel.textContent = '停止接收新项目任务';
+      const archive = document.createElement('input'); archive.type = 'checkbox'; archive.checked = project.archived; archiveLabel.append(archive);
+      const save = document.createElement('button'); save.type = 'button'; save.textContent = '保存项目设置';
+      save.onclick = () => action(() => api('/api/bridge/config', { type: 'project', project: project.key, name: nameInput.value,
+        allowedAccounts: checks.filter(([, control]) => control.checked).map(([alias]) => alias), archived: archive.checked }), '项目设置已保存；只影响后续新任务。');
+      form.append(nameLabel, accountsLabel, archiveLabel, save); item.append(form);
+      const bindingOptions = bridge.discoveredProjects.filter(found => found.profileId && !project.bindings.some(binding => binding.account === found.account && binding.projectId === found.projectId));
+      if (bindingOptions.length) {
+        const bind = document.createElement('div'); bind.className = 'mini-form';
+        const label = document.createElement('label'); label.textContent = '关联已核实的 ChatGPT Project';
+        const select = document.createElement('select');
+        for (const found of bindingOptions) {
+          const option = document.createElement('option'); option.value = `${found.account}|${found.projectId}`;
+          option.textContent = `${bridge.accounts.find(account => account.aliases.includes(found.account))?.label || found.account} · ${found.name}`;
+          select.append(option);
+        }
+        label.append(select);
+        const button = document.createElement('button'); button.type = 'button'; button.textContent = '保存 Project 绑定';
+        button.onclick = () => { const [account, projectId] = select.value.split('|');
+          action(() => api('/api/bridge/config', { type: 'binding', project: project.key, account, projectId }), '实际 Project 已关联；可再设置新任务账号。'); };
+        bind.append(label, button); item.append(bind);
+      }
+      const groupForm = document.createElement('div'); groupForm.className = 'mini-form';
+      const groupIdLabel = document.createElement('label'); groupIdLabel.textContent = '工作组 ID';
+      const groupId = document.createElement('input'); groupId.placeholder = 'commerce'; groupIdLabel.append(groupId);
+      const groupNameLabel = document.createElement('label'); groupNameLabel.textContent = '工作组名称';
+      const groupName = document.createElement('input'); groupName.placeholder = 'Commerce'; groupNameLabel.append(groupName);
+      const ownerLabel = document.createElement('label'); ownerLabel.textContent = '对应总控 Chat';
+      const owner = document.createElement('select');
+      const blank = document.createElement('option'); blank.value = ''; blank.textContent = '暂不登记'; owner.append(blank);
+      for (const chat of project.controllerChats) { const option = document.createElement('option'); option.value = chat.sessionRef; option.textContent = `${chat.role} · ${chat.account}`; owner.append(option); }
+      ownerLabel.append(owner);
+      const groupSave = document.createElement('button'); groupSave.type = 'button'; groupSave.textContent = '保存工作组';
+      groupSave.onclick = () => action(() => api('/api/bridge/config', { type: 'workgroup', project: project.key,
+        workgroupId: groupId.value, name: groupName.value, controllerSessionRef: owner.value }), '工作组已保存。');
+      groupForm.append(groupIdLabel, groupNameLabel, ownerLabel, groupSave); item.append(groupForm);
+    }
+    if (!bridge.projects.length) {
+      const item = document.createElement('li'); item.className = 'muted'; item.textContent = '还没有 Bridge 项目'; projectList.append(item);
+    }
+    const operations = bridge.queue?.operations || [];
+    for (const operation of operations.slice(0, 30)) {
+      const item = document.createElement('li');
+      const title = document.createElement('div'); title.className = 'account-title';
+      title.textContent = `${operation.project} · ${operation.role} · ${taskLabels[operation.status] || operation.status}${operation.taskStatus ? ` · 任务 ${taskLabels[operation.taskStatus] || operation.taskStatus}` : ''}`;
+      const detail = document.createElement('p'); detail.className = 'detail';
+      detail.textContent = `${operation.account} · ${operation.reason || '无等待原因'} · 更新 ${operation.updatedAt || '未知'}`;
+      item.append(title, detail);
+      if (operation.status === 'QUEUED') {
+        const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = '取消排队';
+        cancel.onclick = () => action(() => api(`/api/bridge/operation/${operation.operationId}/cancel`, {}), '排队任务已取消。');
+        item.append(cancel);
+      }
+      queueList.append(item);
+    }
+    if (!operations.length) {
+      const item = document.createElement('li'); item.className = 'muted';
+      item.textContent = bridge.queue?.unavailable ? '持久队列尚未连接或服务未安装。' : '当前没有队列记录。'; queueList.append(item);
+    }
+  }
+
+  async function refresh() {
+    const state = await api('/api/status');
+    const badge = $('backend-status'); badge.className = `pill ${state.backend}`; badge.textContent = state.backend === 'online' ? '服务运行中' : '服务未运行';
+    $('overview-backend').textContent = state.backend === 'online' ? '运行中' : '未运行';
+    $('overview-accounts').textContent = `${state.accounts.filter(account => account.state === 'online').length} / ${state.accounts.length} 在线`;
+    const flags = state.capabilities || { write: false, commands: false, screenView: false, screenControl: false };
+    $('overview-access').textContent = [flags.write && '写入', flags.commands && '命令', flags.screenView && '截图', flags.screenControl && '屏幕控制'].filter(Boolean).join(' · ') || '只读';
+    if (!rootsDirty) roots = state.roots;
+    if (!accessDirty) {
+      $('cap-write').checked = flags.write;
+      $('cap-commands').checked = flags.commands;
+      $('cap-view').checked = flags.screenView;
+      $('cap-control').checked = flags.screenControl;
+    }
+    renderRoots();
+    try { const bridge = await api('/api/bridge');
+      if (!$('bridge').contains(document.activeElement) || document.activeElement.tagName === 'BUTTON') renderBridge(bridge);
+      if (!$('accounts-section').contains(document.activeElement) || document.activeElement.tagName === 'BUTTON') renderAccounts(state.accounts, bridge.accounts);
+    }
+    catch (error) { renderAccounts(state.accounts); $('bridge-status').className = 'pill offline'; $('bridge-status').textContent = '读取失败'; }
+  }
+
+  $('refresh').onclick = () => action(async () => {}, '状态已刷新。');
+  $('pick-folder').onclick = () => action(async () => {
+    const chosen = await api('/api/folder/pick', {});
+    if (!roots.includes(chosen.path)) roots.push(chosen.path);
+    rootsDirty = true;
+    renderRoots();
+  }, '文件夹已加入列表，请保存并重启服务。', false);
+  for (const id of ['cap-write', 'cap-commands', 'cap-view', 'cap-control']) $(id).onchange = () => {
+    if (id === 'cap-control' && $('cap-control').checked) $('cap-view').checked = true;
+    if (id === 'cap-view' && !$('cap-view').checked) $('cap-control').checked = false;
+    accessDirty = true; message('权限已改动，请保存并重启服务。');
+  };
+  $('save-roots').onclick = () => action(async () => {
+    await api('/api/config', { roots, capabilities: capabilities() });
+    await api('/api/backend/start', {});
+    rootsDirty = false; accessDirty = false;
+  }, '权限已保存，本机服务已重启。');
+  $('start-backend').onclick = () => action(() => api('/api/backend/start', {}), '本机服务已启动。');
+  $('show-add').onclick = () => { $('add-form').hidden = false; $('add-form').querySelector('input').focus(); };
+  $('project-add').onsubmit = event => {
+    event.preventDefault();
+    const form = event.currentTarget; const name = String(new FormData(form).get('name') || '').trim();
+    action(async () => { await api('/api/bridge/config', { type: 'project', project: name, name, allowedAccounts: [] }); form.reset(); },
+      '业务项目已建立；关联实际 Project 后才能接收新任务。');
+  };
+  $('cancel-add').onclick = () => { $('add-form').hidden = true; $('add-form').reset(); };
+  $('add-form').onsubmit = event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const values = Object.fromEntries(new FormData(form));
+    action(async () => {
+      await api('/api/backend/ensure', {});
+      const created = await api('/api/account', values);
+      await api(`/api/account/${created.account.id}/start`, {});
+      form.reset(); form.hidden = true;
+    }, '账号已保存，隧道启动中。');
+  };
+  refresh().catch(error => message(error.message, true));
+  setInterval(() => { if (!busy) refresh().catch(error => message(error.message, true)); }, 10000);
+</script>
+</html>
